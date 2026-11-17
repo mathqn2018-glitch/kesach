@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KĐ-HAI MẶT PHẲNG SONG SONG</title>
+<style>
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',sans-serif;background:#111;color:#fff;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  #title-bar{padding:10px 16px;background:#1a1a2e;font-size:1rem;font-weight:700;color:#e0c3fc;letter-spacing:.5px;flex-shrink:0}
+  #video-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #rewind-icon{position:absolute;bottom:12px;left:12px;z-index:10;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:1.4rem;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #quiz-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.75);align-items:center;justify-content:center;padding:12px}
+  .quiz-content{background:#1e1e3f;border-radius:16px;padding:20px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+  .quiz-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+  .quiz-header-center{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .q-badge{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-weight:700;font-size:.9rem;padding:4px 14px;border-radius:20px}
+  .rewind-btn{background:rgba(255,255,255,.12);border:none;color:#fff;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;white-space:nowrap}
+  .rewind-btn:hover{background:rgba(255,255,255,.22)}
+  .q-text{color:#fff;font-weight:600;margin-bottom:14px;line-height:1.5}
+  .q-img{margin-bottom:12px;text-align:center} .q-img img{max-width:100%;max-height:200px;border-radius:8px;object-fit:contain}
+  .answers-wrap{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .answers-wrap.single-col{grid-template-columns:1fr}
+  .ans-btn{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:all .15s;font-size:var(--ans-fs,1.1rem)}
+  .ans-btn:hover:not(:disabled){background:rgba(102,126,234,.25);border-color:#667eea}
+  .ans-btn.correct{background:rgba(67,160,71,.3);border-color:#43a047;color:#a5d6a7}
+  .ans-btn.incorrect{background:rgba(239,83,80,.25);border-color:#ef5350;color:#ef9a9a}
+  .ans-btn.disabled,.ans-btn:disabled{opacity:.45;cursor:not-allowed}
+  .ans-btn.selected{border-color:#7b1fa2;background:rgba(123,31,162,.2)}
+  .ans-confirm{background:#7b1fa2;color:#fff;border:none;border-radius:10px;padding:12px;cursor:pointer;font-weight:700;font-size:1rem}
+  .ans-confirm:disabled{opacity:.4;cursor:not-allowed}
+  .ans-label{font-weight:700;font-size:1.1em;background:rgba(255,255,255,.15);border-radius:6px;padding:2px 8px;min-width:28px;text-align:center;flex-shrink:0}
+  .ans-text{flex:1}
+  .tf-row{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:12px;margin-bottom:8px}
+  .tf-text{font-weight:600;margin-bottom:8px;line-height:1.4}
+  .tf-btns{display:flex;gap:8px}
+  .tf-btn{flex:1;padding:8px;border-radius:8px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:.9rem;font-weight:600}
+  .tf-btn:hover{background:rgba(255,255,255,.15)}
+  .tf-selected-t{background:rgba(67,160,71,.3)!important;border-color:#43a047!important;color:#a5d6a7!important}
+  .tf-selected-f{background:rgba(239,83,80,.25)!important;border-color:#ef5350!important;color:#ef9a9a!important}
+  .short-wrap{display:flex;flex-direction:column;gap:8px}
+  #short-input{width:100%;padding:12px 16px;border-radius:8px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:1rem;text-align:center;outline:none}
+  #short-input:focus{border-color:#667eea}
+  .feedback{display:none;align-items:center;justify-content:center;gap:8px;margin-top:14px;font-size:1.1rem;font-weight:700;padding:10px;border-radius:10px}
+  .feedback.correct{background:rgba(67,160,71,.25);color:#a5d6a7}
+  .feedback.incorrect{background:rgba(239,83,80,.2);color:#ef9a9a}
+  
+
+#local-video{width:100%;height:100%;object-fit:contain;background:#000}
+#missing-box{
+  display:none;position:absolute;inset:0;z-index:5;
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;padding:24px;text-align:center;color:#fff;
+  background:linear-gradient(135deg,#1a0a0a,#2d1515,#1a0a0a);
+}
+#missing-box .err-icon{font-size:3.5rem}
+#missing-box h2{color:#ffcc80;font-size:1.3rem;font-weight:700;margin:0}
+#missing-box p{color:#b0bec5;max-width:420px;line-height:1.7;font-size:.9rem;margin:0}
+#missing-box code{background:rgba(255,255,255,.12);padding:2px 7px;border-radius:4px;font-family:monospace;color:#e0c3fc}
+#start-overlay{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.45);cursor:pointer;gap:14px}
+.play-btn{width:80px;height:80px;background:rgba(255,255,255,.92);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,.5);transition:transform .15s,box-shadow .15s}
+#start-overlay:hover .play-btn{transform:scale(1.1);box-shadow:0 8px 32px rgba(0,0,0,.7)}
+.start-hint{color:#fff;font-size:1rem;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+</style>
+</head>
+<body>
+<div id="title-bar">🎬 KĐ-HAI MẶT PHẲNG SONG SONG</div>
+<div id="video-wrap">
+  <video id="local-video" controls playsinline preload="metadata"></video>
+
+  <div id="missing-box">
+    <div class="err-icon">⚠️</div>
+    <h2>Chưa tìm thấy file video</h2>
+    <p>
+      Đặt file video vào <b>cùng thư mục</b> với file <code>video.html</code><br>
+      và đổi tên thành <code>src.mp4</code><br><br>
+      Sau đó mở lại file <code>video.html</code>.
+    </p>
+    <p>Xem file <code>Hướng dẫn.txt</code> để biết thêm chi tiết.</p>
+  </div>
+
+  <div id="start-overlay" style="display:none">
+    <div class="play-btn">▶</div>
+    <p class="start-hint">Bấm để bắt đầu xem video</p>
+  </div>
+
+  <button id="rewind-icon" title="Tua lại 10 giây">⏪</button>
+  <div id="quiz-overlay"></div>
+</div>
+
+
+<script>
+var QUIZ_DATA = {"quizzes":[{"time":19,"question":"[color=#e53935]Điều gì khiến những cuốn sách trượt khỏi kệ?[/color]","options":["Tầng kệ bị nghiêng","Những cuốn sách quá nhiều màu sắc","Ánh sáng trong thư viện thay đổi","Những cuốn sách được xếp quá sát nhau"],"correct":0,"questionHtml":"\u003cspan style=\"color:#e53935\">Điều gì khiến những cuốn sách trượt khỏi kệ?\u003c/span>","optionsHtml":["Tầng kệ bị nghiêng","Những cuốn sách quá nhiều màu sắc","Ánh sáng trong thư viện thay đổi","Những cuốn sách được xếp quá sát nhau"],"statements":[]},{"time":24,"question":"[color=#e53935][color=#fdd835]Nếu là người sửa chiếc kệ này, em sẽ chọn cách nào?[/color][/color]","options":["Giữ nguyên tầng kệ bị nghiêng và xếp lại sách","Điều chỉnh tầng kệ nằm ngang và cố định chắc chắn.","Chuyển tất cả sách sang một bên kệ","Chỉ gia cố các giá đỡ mà không điều chỉnh độ nghiêng của tầng kệ."],"correct":1,"questionHtml":"\u003cspan style=\"color:#e53935\">[color=#fdd835]Nếu là người sửa chiếc kệ này, em sẽ chọn cách nào?\u003c/span>[/color]","optionsHtml":["Giữ nguyên tầng kệ bị nghiêng và xếp lại sách","Điều chỉnh tầng kệ nằm ngang và cố định chắc chắn.","Chuyển tất cả sách sang một bên kệ","Chỉ gia cố các giá đỡ mà không điều chỉnh độ nghiêng của tầng kệ."],"statements":[]}],"allowSeeking":true,"questionFontSize":"md","answerFontSize":"md"};
+
+var quizzes        = QUIZ_DATA.quizzes || [];
+var allowSeeking   = QUIZ_DATA.allowSeeking !== false;
+var questionFs     = { sm:'1rem', md:'1.25rem', lg:'1.6rem', xl:'2rem' }[QUIZ_DATA.questionFontSize] || '1.25rem';
+var answerFs       = { sm:'1rem', md:'1.25rem', lg:'1.6rem', xl:'2rem' }[QUIZ_DATA.answerFontSize]   || '1.25rem';
+
+var currentIdx        = -1;
+var incorrectSet      = [];
+var answered          = false;
+var triggeredWindows  = new Set();
+var tickInterval      = null;
+var selectedMultiple  = [];
+var tfState           = {};
+
+function escapeHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Sound effects (base64 short beeps) ──────────────────────────────────────
+var CTX = null;
+function getCtx() { if (!CTX) { try { CTX = new (window.AudioContext||window.webkitAudioContext)() } catch(e){} } return CTX }
+function playBeep(freq, type, dur, vol) {
+  var ctx = getCtx(); if (!ctx) return;
+  var o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = type||'sine'; o.frequency.value = freq||440;
+  g.gain.setValueAtTime(vol||0.3, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  o.start(); o.stop(ctx.currentTime + dur);
+}
+function playCorrect()   { playBeep(880,'sine',0.3,0.3); setTimeout(function(){ playBeep(1100,'sine',0.25,0.2) },150) }
+function playIncorrect() { playBeep(220,'sawtooth',0.4,0.25) }
+
+// ── Overlay render ───────────────────────────────────────────────────────────
+function showOverlay(idx) {
+  currentIdx       = idx;
+  incorrectSet     = [];
+  answered         = false;
+  selectedMultiple = [];
+  tfState          = {};
+  var q = quizzes[idx];
+  var overlay = document.getElementById('quiz-overlay');
+  overlay.innerHTML = buildOverlayHTML(q, idx);
+  overlay.style.display = 'flex';
+  bindOverlayEvents(q);
+}
+
+function buildOverlayHTML(q, idx) {
+  var qType = q.type || 'abcd';
+  var labels = ['A','B','C','D','E','F'];
+  var typeLabel = qType === 'true_false' ? '✅ Đúng/Sai' : qType === 'short_answer' ? '✏️ Trả lời ngắn' : qType === 'multiple' ? '☑️ Nhiều đáp án' : '';
+
+  var answersHtml = '';
+  if (qType === 'abcd') {
+    (q.options||[]).forEach(function(opt, i) {
+      var img = q.optionImages && q.optionImages[i] ? '<img src="'+escapeHtml(q.optionImages[i])+'" style="display:block;max-width:100%;max-height:80px;border-radius:4px;margin-bottom:'+(opt?'4px':'0')+';object-fit:contain">' : '';
+      answersHtml += '<button class="ans-btn" data-idx="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?q.optionsHtml[i]:'')+'</span></button>';
+    });
+  } else if (qType === 'multiple') {
+    (q.options||[]).forEach(function(opt, i) {
+      var img = q.optionImages && q.optionImages[i] ? '<img src="'+escapeHtml(q.optionImages[i])+'" style="display:block;max-width:100%;max-height:80px;border-radius:4px;margin-bottom:'+(opt?'4px':'0')+';object-fit:contain">' : '';
+      answersHtml += '<button class="ans-btn" data-multi="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?q.optionsHtml[i]:'')+'</span></button>';
+    });
+    answersHtml += '<button class="ans-confirm" id="confirm-multi" style="grid-column:span 2;font-size:'+answerFs+'">Xác nhận</button>';
+  } else if (qType === 'true_false') {
+    (q.statements||[]).forEach(function(st, i) {
+      answersHtml += '<div class="tf-row"><div class="tf-text"><b>'+labels[i]+'.</b> '+st.textHtml+'</div>'
+        +'<div class="tf-btns"><button class="tf-btn" data-tf="'+i+'" data-val="true">Đúng</button>'
+        +'<button class="tf-btn" data-tf="'+i+'" data-val="false">Sai</button></div></div>';
+    });
+  } else if (qType === 'short_answer') {
+    answersHtml = '<div class="short-wrap"><input id="short-input" type="text" placeholder="Nhập câu trả lời..." style="font-size:'+answerFs+'">'
+      +'<button class="ans-confirm" id="confirm-short" style="font-size:'+answerFs+'">Xác nhận</button></div>';
+  }
+
+  var audioBtn = q.questionAudio ? '<button class="rewind-btn" id="play-audio-btn">🔊 Phát âm</button>' : '<button class="rewind-btn" style="visibility:hidden">⏪ Tua lại</button>';
+  var qImg = q.questionImage ? '<div class="q-img"><img src="'+escapeHtml(q.questionImage)+'" alt="question"></div>' : '';
+  var audioEl = q.questionAudio ? '<audio id="q-audio" src="'+escapeHtml(q.questionAudio)+'"></audio>' : '';
+
+  return '<div class="quiz-content">'
+    +'<div class="quiz-header">'
+    +'<button class="rewind-btn" id="rewind-btn">⏪ Tua lại</button>'
+    +'<div class="quiz-header-center"><span class="q-badge">Câu '+(idx+1)+'</span>'+(typeLabel?'<span style="font-size:0.8em;opacity:0.7">'+typeLabel+'</span>':'')+'</div>'
+    +audioBtn
+    +'</div>'
+    +'<h2 class="q-text" style="font-size:'+questionFs+'">'+q.questionHtml+'</h2>'
+    +qImg
+    +audioEl
+    +'<div class="answers-wrap'+(qType==='true_false'||qType==='short_answer'?' single-col':'')+'" style="--ans-fs:'+answerFs+'">'+answersHtml+'</div>'
+    +'<div class="feedback" id="feedback"></div>'
+    +'</div>';
+}
+
+function bindOverlayEvents(q) {
+  var qType = q.type || 'abcd';
+  var rewindBtn = document.getElementById('rewind-btn');
+  if (rewindBtn) rewindBtn.addEventListener('click', doRewind);
+
+  var audioBtn = document.getElementById('play-audio-btn');
+  var audioEl  = document.getElementById('q-audio');
+  if (audioBtn && audioEl) {
+    audioBtn.addEventListener('click', function() {
+      if (audioEl.paused) { audioEl.play(); audioBtn.textContent = '⏹ Dừng' }
+      else { audioEl.pause(); audioEl.currentTime=0; audioBtn.textContent = '🔊 Phát âm' }
+    });
+    audioEl.addEventListener('ended', function() { audioBtn.textContent = '🔊 Phát âm' });
+  }
+
+  if (qType === 'abcd') {
+    document.querySelectorAll('.ans-btn[data-idx]').forEach(function(btn) {
+      btn.addEventListener('click', function() { handleAbcd(parseInt(btn.dataset.idx), q) });
+    });
+  } else if (qType === 'multiple') {
+    document.querySelectorAll('.ans-btn[data-multi]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (answered) return;
+        var i = parseInt(btn.dataset.multi);
+        var pos = selectedMultiple.indexOf(i);
+        if (pos >= 0) { selectedMultiple.splice(pos,1); btn.classList.remove('selected') }
+        else { selectedMultiple.push(i); btn.classList.add('selected') }
+      });
+    });
+    var confirmBtn = document.getElementById('confirm-multi');
+    if (confirmBtn) confirmBtn.addEventListener('click', function() { handleMultiple(q) });
+  } else if (qType === 'true_false') {
+    document.querySelectorAll('.tf-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (answered) return;
+        var stIdx = parseInt(btn.dataset.tf);
+        var val   = btn.dataset.val === 'true';
+        tfState[stIdx] = val;
+        // highlight row
+        var row = btn.closest('.tf-row');
+        row.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.remove('tf-selected-t','tf-selected-f') });
+        btn.classList.add(val ? 'tf-selected-t' : 'tf-selected-f');
+        if (Object.keys(tfState).length >= (q.statements||[]).length) handleTrueFalse(q);
+      });
+    });
+  } else if (qType === 'short_answer') {
+    var inp = document.getElementById('short-input');
+    var confirmS = document.getElementById('confirm-short');
+    if (inp) inp.addEventListener('keydown', function(e) { if (e.key==='Enter') handleShort(q) });
+    if (confirmS) confirmS.addEventListener('click', function() { handleShort(q) });
+  }
+}
+
+function handleAbcd(i, q) {
+  if (answered) return;
+  if (incorrectSet.includes(i)) return;
+  if (i === q.correct) {
+    playCorrect();
+    setFeedback('correct');
+    answered = true;
+    markCorrectBtn(i);
+    setTimeout(closeOverlayAndResume, 1500);
+  } else {
+    playIncorrect();
+    incorrectSet.push(i);
+    var btn = document.querySelector('.ans-btn[data-idx="'+i+'"]');
+    if (btn) { btn.classList.add('incorrect'); setTimeout(function(){ btn.classList.remove('incorrect') }, 1200) }
+    setFeedback('incorrect');
+    setTimeout(function(){ setFeedback('') }, 1500);
+  }
+}
+
+function handleMultiple(q) {
+  if (answered) return;
+  var correct = q.correctIndices || [];
+  var ok = selectedMultiple.length === correct.length && selectedMultiple.every(function(x){ return correct.includes(x) });
+  if (ok) {
+    playCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 1500);
+  } else {
+    playIncorrect(); setFeedback('incorrect');
+    selectedMultiple = [];
+    document.querySelectorAll('.ans-btn[data-multi]').forEach(function(b){ b.classList.remove('selected') });
+    setTimeout(function(){ setFeedback('') }, 1500);
+  }
+}
+
+function handleTrueFalse(q) {
+  var ok = (q.statements||[]).every(function(st,i){ return tfState[i] === st.isTrue });
+  if (ok) {
+    playCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 1500);
+  } else {
+    playIncorrect(); setFeedback('incorrect');
+    tfState = {};
+    document.querySelectorAll('.tf-btn').forEach(function(b){ b.classList.remove('tf-selected-t','tf-selected-f') });
+    setTimeout(function(){ setFeedback('') }, 1500);
+  }
+}
+
+function handleShort(q) {
+  if (answered) return;
+  var inp = document.getElementById('short-input');
+  if (!inp || !inp.value.trim()) return;
+  var userAns = inp.value.trim().toLowerCase();
+  var correct = (q.correctAnswer||'').trim().toLowerCase();
+  var alts = (q.alternativeAnswers||[]).map(function(a){ return a.trim().toLowerCase() });
+  if (userAns === correct || alts.includes(userAns)) {
+    playCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 1500);
+  } else {
+    playIncorrect(); setFeedback('incorrect');
+    inp.value = '';
+    setTimeout(function(){ setFeedback('') }, 1500);
+  }
+}
+
+function setFeedback(state) {
+  var el = document.getElementById('feedback');
+  if (!el) return;
+  if (!state) { el.style.display='none'; return; }
+  el.className = 'feedback ' + state;
+  el.innerHTML = state === 'correct' ? '<span>🎉</span><span>Chính xác!</span>' : '<span>💭</span><span>Thử lại nhé!</span>';
+  el.style.display = 'flex';
+}
+
+function markCorrectBtn(i) {
+  var btn = document.querySelector('.ans-btn[data-idx="'+i+'"]');
+  if (btn) btn.classList.add('correct');
+}
+
+function closeOverlayAndResume() {
+  document.getElementById('quiz-overlay').style.display = 'none';
+  resumeVideo();
+}
+
+function doRewind() {
+  document.getElementById('quiz-overlay').style.display = 'none';
+  triggeredWindows.clear();
+  rewindVideo(10);
+  resumeVideo();
+}
+</script>
+
+<script>
+var vid = document.getElementById('local-video');
+var missingBox   = document.getElementById('missing-box');
+var startOverlay = document.getElementById('start-overlay');
+
+vid.src = 'src.mp4';
+vid.load();
+
+vid.addEventListener('error', function() {
+  vid.style.display = 'none';
+  missingBox.style.display = 'flex';
+  document.getElementById('rewind-icon').style.display = 'none';
+});
+vid.addEventListener('loadedmetadata', function() {
+  missingBox.style.display = 'none';
+  startOverlay.style.display = 'flex';
+});
+
+startOverlay.addEventListener('click', function() {
+  startOverlay.style.display = 'none';
+  vid.play();
+});
+
+vid.addEventListener('play', function() {
+  startOverlay.style.display = 'none';
+  startTick();
+});
+vid.addEventListener('pause', function() { stopTick(); });
+
+function resumeVideo()  { vid.play(); }
+function rewindVideo(s) { vid.currentTime = Math.max(0, vid.currentTime - s); }
+
+function startTick() {
+  stopTick();
+  tickInterval = setInterval(function() {
+    if (document.getElementById('quiz-overlay').style.display === 'flex') return;
+    checkQuizAt(vid.currentTime);
+  }, 100);
+}
+function stopTick() { if (tickInterval) { clearInterval(tickInterval); tickInterval = null; } }
+
+function checkQuizAt(t) {
+  for (var i = 0; i < quizzes.length; i++) {
+    var qt = quizzes[i].time;
+    if (t >= qt && t < qt + 1) {
+      if (!triggeredWindows.has(i)) {
+        triggeredWindows.add(i);
+        vid.pause();
+        stopTick();
+        showOverlay(i);
+        return;
+      }
+    } else {
+      triggeredWindows.delete(i);
+    }
+  }
+}
+
+document.getElementById('rewind-icon').addEventListener('click', function() {
+  document.getElementById('quiz-overlay').style.display = 'none';
+  triggeredWindows.clear();
+  rewindVideo(10);
+  resumeVideo();
+});
+</script>
+</body>
+</html>

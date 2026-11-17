@@ -1,0 +1,25 @@
+CẤU TRÚC THƯ MỤC
+==================
+KĐ-HAI MẶT PHẲNG SONG SONG/
+├── video.html        ← Mở file này bằng trình duyệt
+├── src.mp4           ← ĐẶT FILE VIDEO CỦA BẠN VÀO ĐÂY (cùng thư mục!)
+└── Hướng dẫn.txt    ← File này
+
+CÁCH SỬ DỤNG
+============
+1. Copy file video của bạn vào CÙNG THƯ MỤC với video.html
+   rồi đổi tên thành: src.mp4
+
+   Ví dụ: "bai-giang-lop-9.mp4" → đổi thành → "src.mp4"
+   Chú ý: Chỉ đổi tên file, KHÔNG đổi đuôi .mp4!
+
+2. Mở file "video.html" bằng Chrome hoặc Edge.
+
+3. Video phát ngay! Câu hỏi sẽ tự xuất hiện đúng giờ.
+
+LƯU Ý
+======
+- Chạy HOÀN TOÀN OFFLINE, không cần internet.
+- src.mp4 phải đặt CÙNG THƯ MỤC với video.html (không phải trong subfolder).
+- Không xoá hay di chuyển file video.html.
+- Firefox có thể bị hạn chế với file:// — nên dùng Chrome/Edge.
