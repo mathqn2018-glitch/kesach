@@ -12,7 +12,7 @@
   #video-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
   #rewind-icon{position:absolute;bottom:12px;left:12px;z-index:10;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:1.4rem;border-radius:8px;padding:6px 10px;cursor:pointer}
   #fireworks-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:35;pointer-events:none}
-  #sound-toggle{position:absolute;right:12px;top:12px;z-index:40;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(20,20,45,.8);color:white;padding:8px 12px;cursor:pointer;font-weight:700}
+  #sound-controls{position:absolute;right:12px;top:12px;z-index:40;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:rgba(20,20,45,.82);padding:6px;border-radius:10px} #sound-controls button{background:#43366b;color:white;border:1px solid #a98ff0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700} #sound-controls input{width:90px;accent-color:#ffd34d} #sound-toggle{border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(20,20,45,.8);color:white;padding:8px 12px;cursor:pointer;font-weight:700}
   @media(max-width:600px){.answers-wrap{grid-template-columns:1fr}.quiz-content{padding:14px}.q-text{font-size:1.05rem!important}}
   #quiz-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.75);align-items:center;justify-content:center;padding:12px}
   .quiz-content{background:#1e1e3f;border-radius:16px;padding:20px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6)}
@@ -65,6 +65,9 @@
 .play-btn{width:80px;height:80px;background:rgba(255,255,255,.92);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,.5);transition:transform .15s,box-shadow .15s}
 #start-overlay:hover .play-btn{transform:scale(1.1);box-shadow:0 8px 32px rgba(0,0,0,.7)}
 .start-hint{color:#fff;font-size:1rem;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+@keyframes wrongAlertPulse {0%,100%{box-shadow:0 8px 32px rgba(0,0,0,.6)} 20%,65%{box-shadow:0 0 0 4px rgba(255,72,72,.85),0 0 34px rgba(255,30,30,.5)}}
+.quiz-content.wrong-alert{animation:wrongAlertPulse .78s ease-in-out}
+@media (prefers-reduced-motion:reduce){.quiz-content.wrong-alert{animation:none;outline:3px solid #ff5252}}
 </style>
 </head>
 <body>
@@ -91,7 +94,7 @@
   <button id="rewind-icon" title="Tua lại 10 giây">⏪</button>
   <div id="quiz-overlay"></div>
   <canvas id="fireworks-canvas" aria-hidden="true"></canvas>
-  <button id="sound-toggle" type="button" aria-label="Tắt âm thanh hiệu ứng" aria-pressed="true">🔊 Âm thanh: Bật</button>
+  <div id="sound-controls"><button id="sound-toggle" type="button" aria-label="Tắt âm thanh hiệu ứng" aria-pressed="true">🔊 Bật</button><label for="fx-volume" style="font-size:12px">Âm lượng</label><input id="fx-volume" type="range" min="0" max="100" value="95" aria-label="Âm lượng hiệu ứng"><button id="sound-test" type="button">🎉 Thử đúng</button><button id="wrong-test" type="button">🚨 Thử sai</button></div>
 </div>
 
 
@@ -116,42 +119,115 @@ function escapeHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-// Hiệu ứng âm thanh Web Audio tự tạo: không cần tệp âm thanh bên ngoài.
-var CTX = null;
-var effectsSoundEnabled = true;
+// Nhạc hiệu chúc mừng nhiều lớp, Web Audio API, không cần file bên ngoài.
+var CTX = null, effectsSoundEnabled = true, fxVolume = 0.95;
 function getCtx() {
   if (!CTX) { try { CTX = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; } }
-  if (CTX && CTX.state === 'suspended') CTX.resume().catch(function(){});
+  if (CTX.state === 'suspended') CTX.resume().catch(function(){});
   return CTX;
 }
-function tone(freq, start, duration, type, volume) {
-  if (!effectsSoundEnabled) return;
-  var ctx = getCtx(); if (!ctx) return;
-  var o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, ctx.currentTime + start);
-  o.connect(g); g.connect(ctx.destination);
-  g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
-  g.gain.exponentialRampToValueAtTime(volume || 0.12, ctx.currentTime + start + 0.025);
-  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + duration);
-  o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + duration + 0.02);
+function makeBus(ctx) {
+  var master=ctx.createGain(), limiter=ctx.createDynamicsCompressor();
+  limiter.threshold.value=-14;limiter.knee.value=9;limiter.ratio.value=5;
+  limiter.attack.value=0.004;limiter.release.value=0.18;
+  master.gain.value=fxVolume;
+  master.connect(limiter);limiter.connect(ctx.destination);
+  return master;
+}
+function note(ctx,bus,freq,at,duration,wave,level) {
+  var osc=ctx.createOscillator(),env=ctx.createGain();
+  osc.type=wave||'triangle';osc.frequency.setValueAtTime(freq,at);
+  env.gain.setValueAtTime(0.0001,at);
+  env.gain.exponentialRampToValueAtTime(Math.max(0.0002,level),at+0.018);
+  env.gain.exponentialRampToValueAtTime(0.0001,at+duration);
+  osc.connect(env);env.connect(bus);osc.start(at);osc.stop(at+duration+0.02);
+}
+// Hiệu ứng âm thanh được tổng hợp tại chỗ: không cần tải MP3.
+function sparkle(ctx,bus,at){
+  [1760,2093,2637,3136,3520].forEach(function(f,i){
+    note(ctx,bus,f,at+i*0.075,0.25,'sine',0.11);
+  });
+}
+function noiseBurst(ctx,bus,at,duration,level){
+  var length=Math.ceil(ctx.sampleRate*duration),buffer=ctx.createBuffer(1,length,ctx.sampleRate);
+  var data=buffer.getChannelData(0);
+  for(var i=0;i<length;i++) data[i]=(Math.random()*2-1)*(1-i/length);
+  var source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),env=ctx.createGain();
+  source.buffer=buffer;filter.type='highpass';filter.frequency.value=850;
+  env.gain.setValueAtTime(0.0001,at);
+  env.gain.exponentialRampToValueAtTime(level,at+0.008);
+  env.gain.exponentialRampToValueAtTime(0.0001,at+duration);
+  source.connect(filter);filter.connect(env);env.connect(bus);
+  source.start(at);source.stop(at+duration);
 }
 function playCorrect() {
-  // Âm chúc mừng gồm 5 nốt nhạc vui tươi, phát một lần.
-  [523.25,659.25,783.99,1046.5,1318.5].forEach(function(f,i){tone(f,i*0.105,0.27,'sine',0.12)});
-  tone(1567.98,0.55,0.45,'triangle',0.09);
+  if(!effectsSoundEnabled || fxVolume<=0)return;
+  var ctx=getCtx();if(!ctx)return;
+  var bus=makeBus(ctx),t=ctx.currentTime+0.025;
+  // Nhạc hiệu chiến thắng 2 giây: trống mở màn, kèn fanfare, hợp âm và sao lấp lánh.
+  noiseBurst(ctx,bus,t,0.12,0.18);
+  [[392,0],[523.25,0.17],[659.25,0.34],[783.99,0.51],[1046.5,0.70]].forEach(function(n){
+    note(ctx,bus,n[0],t+n[1],0.36,'sawtooth',0.16);
+    note(ctx,bus,n[0]/2,t+n[1],0.34,'triangle',0.19);
+  });
+  [523.25,659.25,783.99,1046.5].forEach(function(f){
+    note(ctx,bus,f,t+1.02,0.95,'triangle',0.21);
+    note(ctx,bus,f*2,t+1.02,0.42,'sine',0.065);
+  });
+  [0.55,0.98,1.36].forEach(function(dt){noiseBurst(ctx,bus,t+dt,0.12,0.15)});
+  sparkle(ctx,bus,t+1.12);
+  setTimeout(function(){try{bus.disconnect()}catch(e){}},2700);
 }
 function playIncorrect() {
-  // Hai nốt trầm nhẹ, không gây giật mình.
-  tone(330,0,0.18,'sine',0.085);
-  tone(261.63,0.19,0.27,'sine',0.075);
+  if(!effectsSoundEnabled || fxVolume<=0)return;
+  var ctx=getCtx();if(!ctx)return;
+  var bus=makeBus(ctx),t=ctx.currentTime+0.025,duration=1.55;
+  // Một hồi còi cảnh báo LIÊN TỤC, không ngắt nhịp.
+  // Dao động cao độ mượt kiểu còi gameshow, có fade-in/out để tránh tiếng nổ đột ngột.
+  var osc=ctx.createOscillator(),harmonic=ctx.createOscillator();
+  var env=ctx.createGain(),tone=ctx.createBiquadFilter();
+  osc.type='sawtooth';harmonic.type='triangle';
+  tone.type='lowpass';tone.frequency.value=1700;
+  env.gain.setValueAtTime(0.0001,t);
+  env.gain.linearRampToValueAtTime(0.34,t+0.09);
+  env.gain.setValueAtTime(0.34,t+duration-0.22);
+  env.gain.linearRampToValueAtTime(0.0001,t+duration);
+  // Điều biến liên tục giữa 390 và 610 Hz, không có khoảng lặng.
+  for(var i=0;i<=78;i++){
+    var dt=duration*i/78;
+    var f=500+110*Math.sin(2*Math.PI*1.55*dt);
+    osc.frequency.setValueAtTime(f,t+dt);
+    harmonic.frequency.setValueAtTime(f/2,t+dt);
+  }
+  var hGain=ctx.createGain();hGain.gain.value=0.19;
+  osc.connect(tone);tone.connect(env);
+  harmonic.connect(hGain);hGain.connect(env);env.connect(bus);
+  osc.start(t);harmonic.start(t);
+  osc.stop(t+duration+0.01);harmonic.stop(t+duration+0.01);
+  var panel=document.querySelector('.quiz-content');
+  if(panel){
+    panel.classList.remove('wrong-alert');void panel.offsetWidth;
+    panel.classList.add('wrong-alert');
+    setTimeout(function(){panel.classList.remove('wrong-alert')},1550);
+  }
+  setTimeout(function(){try{bus.disconnect()}catch(e){}},1900);
 }
-var soundToggle = document.getElementById('sound-toggle');
+var soundToggle=document.getElementById('sound-toggle');
 soundToggle.addEventListener('click',function(){
-  effectsSoundEnabled = !effectsSoundEnabled;
-  soundToggle.textContent = effectsSoundEnabled ? '🔊 Âm thanh: Bật' : '🔇 Âm thanh: Tắt';
+  effectsSoundEnabled=!effectsSoundEnabled;
+  soundToggle.textContent=effectsSoundEnabled?'🔊 Bật':'🔇 Tắt';
   soundToggle.setAttribute('aria-pressed',String(effectsSoundEnabled));
-  soundToggle.setAttribute('aria-label',effectsSoundEnabled?'Tắt âm thanh hiệu ứng':'Bật âm thanh hiệu ứng');
-  if (effectsSoundEnabled) getCtx();
+  if(effectsSoundEnabled)getCtx();
+});
+document.getElementById('fx-volume').addEventListener('input',function(){fxVolume=Number(this.value)/100});
+document.getElementById('sound-test').addEventListener('click',function(){
+  if(!effectsSoundEnabled){effectsSoundEnabled=true;soundToggle.textContent='🔊 Bật';soundToggle.setAttribute('aria-pressed','true')}
+  celebrateCorrect();
+});
+
+document.getElementById('wrong-test').addEventListener('click',function(){
+  if(!effectsSoundEnabled){effectsSoundEnabled=true;soundToggle.textContent='🔊 Bật';soundToggle.setAttribute('aria-pressed','true')}
+  playIncorrect();
 });
 
 // Pháo hoa canvas nhẹ, tự động dọn sạch sau 1,8 giây.
@@ -315,7 +391,7 @@ function handleAbcd(i, q) {
     setFeedback('correct');
     answered = true;
     markCorrectBtn(i);
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 2450);
   } else {
     playIncorrect();
     incorrectSet.push(i);
@@ -332,7 +408,7 @@ function handleMultiple(q) {
   var ok = selectedMultiple.length === correct.length && selectedMultiple.every(function(x){ return correct.includes(x) });
   if (ok) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 2450);
   } else {
     playIncorrect(); setFeedback('incorrect');
     selectedMultiple = [];
@@ -345,7 +421,7 @@ function handleTrueFalse(q) {
   var ok = (q.statements||[]).every(function(st,i){ return tfState[i] === st.isTrue });
   if (ok) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 2450);
   } else {
     playIncorrect(); setFeedback('incorrect');
     tfState = {};
@@ -363,7 +439,7 @@ function handleShort(q) {
   var alts = (q.alternativeAnswers||[]).map(function(a){ return a.trim().toLowerCase() });
   if (userAns === correct || alts.includes(userAns)) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 2450);
   } else {
     playIncorrect(); setFeedback('incorrect');
     inp.value = '';
@@ -376,7 +452,7 @@ function setFeedback(state) {
   if (!el) return;
   if (!state) { el.style.display='none'; return; }
   el.className = 'feedback ' + state;
-  el.innerHTML = state === 'correct' ? '<span>🎉</span><span>Chính xác!</span>' : '<span>💭</span><span>Thử lại nhé!</span>';
+  el.innerHTML = state === 'correct' ? '<span>🎉</span><span>Chính xác!</span>' : '<span>💭</span><span>Chưa chính xác! Hãy kiểm tra và thử lại.</span>';
   el.style.display = 'flex';
 }
 
