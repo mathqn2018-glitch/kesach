@@ -11,6 +11,9 @@
   #title-bar{padding:10px 16px;background:#1a1a2e;font-size:1rem;font-weight:700;color:#e0c3fc;letter-spacing:.5px;flex-shrink:0}
   #video-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
   #rewind-icon{position:absolute;bottom:12px;left:12px;z-index:10;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:1.4rem;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #fireworks-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:35;pointer-events:none}
+  #sound-toggle{position:absolute;right:12px;top:12px;z-index:40;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(20,20,45,.8);color:white;padding:8px 12px;cursor:pointer;font-weight:700}
+  @media(max-width:600px){.answers-wrap{grid-template-columns:1fr}.quiz-content{padding:14px}.q-text{font-size:1.05rem!important}}
   #quiz-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.75);align-items:center;justify-content:center;padding:12px}
   .quiz-content{background:#1e1e3f;border-radius:16px;padding:20px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6)}
   .quiz-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
@@ -73,9 +76,9 @@
     <div class="err-icon">⚠️</div>
     <h2>Chưa tìm thấy file video</h2>
     <p>
-      Đặt file video vào <b>cùng thư mục</b> với file <code>video.html</code><br>
+      Đặt file video vào <b>cùng thư mục</b> với file <code>index.html</code><br>
       và đổi tên thành <code>src.mp4</code><br><br>
-      Sau đó mở lại file <code>video.html</code>.
+      Sau đó mở lại file <code>index.html</code>.
     </p>
     <p>Xem file <code>Hướng dẫn.txt</code> để biết thêm chi tiết.</p>
   </div>
@@ -87,6 +90,8 @@
 
   <button id="rewind-icon" title="Tua lại 10 giây">⏪</button>
   <div id="quiz-overlay"></div>
+  <canvas id="fireworks-canvas" aria-hidden="true"></canvas>
+  <button id="sound-toggle" type="button" aria-label="Tắt âm thanh hiệu ứng" aria-pressed="true">🔊 Âm thanh: Bật</button>
 </div>
 
 
@@ -102,6 +107,7 @@ var currentIdx        = -1;
 var incorrectSet      = [];
 var answered          = false;
 var triggeredWindows  = new Set();
+var completedQuizzes = new Set();
 var tickInterval      = null;
 var selectedMultiple  = [];
 var tfState           = {};
@@ -110,20 +116,82 @@ function escapeHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-// ── Sound effects (base64 short beeps) ──────────────────────────────────────
+// Hiệu ứng âm thanh Web Audio tự tạo: không cần tệp âm thanh bên ngoài.
 var CTX = null;
-function getCtx() { if (!CTX) { try { CTX = new (window.AudioContext||window.webkitAudioContext)() } catch(e){} } return CTX }
-function playBeep(freq, type, dur, vol) {
+var effectsSoundEnabled = true;
+function getCtx() {
+  if (!CTX) { try { CTX = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; } }
+  if (CTX && CTX.state === 'suspended') CTX.resume().catch(function(){});
+  return CTX;
+}
+function tone(freq, start, duration, type, volume) {
+  if (!effectsSoundEnabled) return;
   var ctx = getCtx(); if (!ctx) return;
   var o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, ctx.currentTime + start);
   o.connect(g); g.connect(ctx.destination);
-  o.type = type||'sine'; o.frequency.value = freq||440;
-  g.gain.setValueAtTime(vol||0.3, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-  o.start(); o.stop(ctx.currentTime + dur);
+  g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+  g.gain.exponentialRampToValueAtTime(volume || 0.12, ctx.currentTime + start + 0.025);
+  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + duration);
+  o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + duration + 0.02);
 }
-function playCorrect()   { playBeep(880,'sine',0.3,0.3); setTimeout(function(){ playBeep(1100,'sine',0.25,0.2) },150) }
-function playIncorrect() { playBeep(220,'sawtooth',0.4,0.25) }
+function playCorrect() {
+  // Âm chúc mừng gồm 5 nốt nhạc vui tươi, phát một lần.
+  [523.25,659.25,783.99,1046.5,1318.5].forEach(function(f,i){tone(f,i*0.105,0.27,'sine',0.12)});
+  tone(1567.98,0.55,0.45,'triangle',0.09);
+}
+function playIncorrect() {
+  // Hai nốt trầm nhẹ, không gây giật mình.
+  tone(330,0,0.18,'sine',0.085);
+  tone(261.63,0.19,0.27,'sine',0.075);
+}
+var soundToggle = document.getElementById('sound-toggle');
+soundToggle.addEventListener('click',function(){
+  effectsSoundEnabled = !effectsSoundEnabled;
+  soundToggle.textContent = effectsSoundEnabled ? '🔊 Âm thanh: Bật' : '🔇 Âm thanh: Tắt';
+  soundToggle.setAttribute('aria-pressed',String(effectsSoundEnabled));
+  soundToggle.setAttribute('aria-label',effectsSoundEnabled?'Tắt âm thanh hiệu ứng':'Bật âm thanh hiệu ứng');
+  if (effectsSoundEnabled) getCtx();
+});
+
+// Pháo hoa canvas nhẹ, tự động dọn sạch sau 1,8 giây.
+var fireworksCanvas = document.getElementById('fireworks-canvas');
+var fireworksCtx = fireworksCanvas.getContext('2d');
+var fireworksFrame = 0, fireworksParticles = [], fireworksStopAt = 0;
+function sizeFireworks(){
+  var r = fireworksCanvas.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1,2);
+  fireworksCanvas.width = Math.round(r.width*d); fireworksCanvas.height = Math.round(r.height*d);
+  fireworksCtx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize',sizeFireworks); sizeFireworks();
+function burstFireworks(){
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  sizeFireworks();
+  var w=fireworksCanvas.clientWidth,h=fireworksCanvas.clientHeight;
+  var colors=['#ffda47','#ff6b91','#5de8ff','#8cff9b','#cba6ff','#ff995c'];
+  fireworksParticles=[];
+  [[0.24,0.33],[0.76,0.28],[0.5,0.46]].forEach(function(pt,k){
+    for(var i=0;i<55;i++){
+      var angle=Math.PI*2*i/55, speed=1.8+Math.random()*3.8;
+      fireworksParticles.push({x:w*pt[0],y:h*pt[1],vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life:1,color:colors[(i+k)%colors.length],r:2+Math.random()*2});
+    }
+  });
+  fireworksStopAt=performance.now()+1800;
+  if (fireworksFrame) cancelAnimationFrame(fireworksFrame);
+  animateFireworks();
+}
+function animateFireworks(){
+  var w=fireworksCanvas.clientWidth,h=fireworksCanvas.clientHeight;
+  fireworksCtx.clearRect(0,0,w,h);
+  fireworksParticles.forEach(function(p){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.045;p.vx*=0.99;p.life-=0.018;
+    if(p.life>0){fireworksCtx.globalAlpha=Math.max(0,p.life);fireworksCtx.fillStyle=p.color;fireworksCtx.beginPath();fireworksCtx.arc(p.x,p.y,p.r,0,Math.PI*2);fireworksCtx.fill();}
+  });
+  fireworksCtx.globalAlpha=1;
+  if(performance.now()<fireworksStopAt && fireworksParticles.some(function(p){return p.life>0})) fireworksFrame=requestAnimationFrame(animateFireworks);
+  else {fireworksCtx.clearRect(0,0,w,h);fireworksFrame=0;fireworksParticles=[];}
+}
+function celebrateCorrect(){playCorrect();burstFireworks();}
 
 // ── Overlay render ───────────────────────────────────────────────────────────
 function showOverlay(idx) {
@@ -148,12 +216,12 @@ function buildOverlayHTML(q, idx) {
   if (qType === 'abcd') {
     (q.options||[]).forEach(function(opt, i) {
       var img = q.optionImages && q.optionImages[i] ? '<img src="'+escapeHtml(q.optionImages[i])+'" style="display:block;max-width:100%;max-height:80px;border-radius:4px;margin-bottom:'+(opt?'4px':'0')+';object-fit:contain">' : '';
-      answersHtml += '<button class="ans-btn" data-idx="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?q.optionsHtml[i]:'')+'</span></button>';
+      answersHtml += '<button class="ans-btn" data-idx="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?(q.optionsHtml && q.optionsHtml[i] ? q.optionsHtml[i] : escapeHtml(opt)):'')+'</span></button>';
     });
   } else if (qType === 'multiple') {
     (q.options||[]).forEach(function(opt, i) {
       var img = q.optionImages && q.optionImages[i] ? '<img src="'+escapeHtml(q.optionImages[i])+'" style="display:block;max-width:100%;max-height:80px;border-radius:4px;margin-bottom:'+(opt?'4px':'0')+';object-fit:contain">' : '';
-      answersHtml += '<button class="ans-btn" data-multi="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?q.optionsHtml[i]:'')+'</span></button>';
+      answersHtml += '<button class="ans-btn" data-multi="'+i+'" style="font-size:'+answerFs+'"><span class="ans-label">'+labels[i]+'</span><span class="ans-text">'+img+(opt?(q.optionsHtml && q.optionsHtml[i] ? q.optionsHtml[i] : escapeHtml(opt)):'')+'</span></button>';
     });
     answersHtml += '<button class="ans-confirm" id="confirm-multi" style="grid-column:span 2;font-size:'+answerFs+'">Xác nhận</button>';
   } else if (qType === 'true_false') {
@@ -242,11 +310,12 @@ function handleAbcd(i, q) {
   if (answered) return;
   if (incorrectSet.includes(i)) return;
   if (i === q.correct) {
-    playCorrect();
+    completedQuizzes.add(currentIdx);
+    celebrateCorrect();
     setFeedback('correct');
     answered = true;
     markCorrectBtn(i);
-    setTimeout(closeOverlayAndResume, 1500);
+    setTimeout(closeOverlayAndResume, 2100);
   } else {
     playIncorrect();
     incorrectSet.push(i);
@@ -262,8 +331,8 @@ function handleMultiple(q) {
   var correct = q.correctIndices || [];
   var ok = selectedMultiple.length === correct.length && selectedMultiple.every(function(x){ return correct.includes(x) });
   if (ok) {
-    playCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 1500);
+    completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 2100);
   } else {
     playIncorrect(); setFeedback('incorrect');
     selectedMultiple = [];
@@ -275,8 +344,8 @@ function handleMultiple(q) {
 function handleTrueFalse(q) {
   var ok = (q.statements||[]).every(function(st,i){ return tfState[i] === st.isTrue });
   if (ok) {
-    playCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 1500);
+    completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 2100);
   } else {
     playIncorrect(); setFeedback('incorrect');
     tfState = {};
@@ -293,8 +362,8 @@ function handleShort(q) {
   var correct = (q.correctAnswer||'').trim().toLowerCase();
   var alts = (q.alternativeAnswers||[]).map(function(a){ return a.trim().toLowerCase() });
   if (userAns === correct || alts.includes(userAns)) {
-    playCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 1500);
+    completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
+    setTimeout(closeOverlayAndResume, 2100);
   } else {
     playIncorrect(); setFeedback('incorrect');
     inp.value = '';
@@ -324,6 +393,7 @@ function closeOverlayAndResume() {
 function doRewind() {
   document.getElementById('quiz-overlay').style.display = 'none';
   triggeredWindows.clear();
+  completedQuizzes.clear();
   rewindVideo(10);
   resumeVideo();
 }
@@ -357,6 +427,7 @@ vid.addEventListener('play', function() {
   startTick();
 });
 vid.addEventListener('pause', function() { stopTick(); });
+vid.addEventListener('ended', function(){ completedQuizzes.clear(); triggeredWindows.clear(); });
 
 function resumeVideo()  { vid.play(); }
 function rewindVideo(s) { vid.currentTime = Math.max(0, vid.currentTime - s); }
@@ -374,7 +445,7 @@ function checkQuizAt(t) {
   for (var i = 0; i < quizzes.length; i++) {
     var qt = quizzes[i].time;
     if (t >= qt && t < qt + 1) {
-      if (!triggeredWindows.has(i)) {
+      if (!triggeredWindows.has(i) && !completedQuizzes.has(i)) {
         triggeredWindows.add(i);
         vid.pause();
         stopTick();
@@ -390,6 +461,7 @@ function checkQuizAt(t) {
 document.getElementById('rewind-icon').addEventListener('click', function() {
   document.getElementById('quiz-overlay').style.display = 'none';
   triggeredWindows.clear();
+  completedQuizzes.clear();
   rewindVideo(10);
   resumeVideo();
 });
