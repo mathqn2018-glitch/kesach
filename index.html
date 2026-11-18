@@ -65,6 +65,27 @@
 .play-btn{width:80px;height:80px;background:rgba(255,255,255,.92);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,.5);transition:transform .15s,box-shadow .15s}
 #start-overlay:hover .play-btn{transform:scale(1.1);box-shadow:0 8px 32px rgba(0,0,0,.7)}
 .start-hint{color:#fff;font-size:1rem;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+
+/* GIAO DIEN HOI GIANG - CHU LON, TUONG PHAN CAO */
+#quiz-overlay{padding:clamp(8px,1.3vw,22px);background:rgba(4,7,22,.88)}
+.quiz-content{width:96vw;max-width:none;height:auto;min-height:min(76vh,740px);max-height:94vh;padding:clamp(18px,2.6vw,44px);border:3px solid #a5b4fc;border-radius:24px;background:#111a36;box-shadow:0 16px 60px rgba(0,0,0,.75);display:flex;flex-direction:column;justify-content:center;gap:clamp(12px,2vh,24px)}
+.quiz-header{margin-bottom:0;min-height:48px}
+.q-badge{font-size:clamp(20px,2vw,32px);padding:8px 28px;background:#5645c4;color:#fff}
+.rewind-btn{font-size:clamp(17px,1.5vw,24px);font-weight:800;padding:12px 20px;background:#334266;color:#fff}
+.q-text,.q-text span,.q-text *{color:#ffe66d!important;font-size:clamp(28px,3.1vw,56px)!important;font-weight:900!important;line-height:1.25!important;text-align:center!important;text-shadow:0 2px 2px #000}
+.q-text{margin:4px 0 12px!important}
+.answers-wrap{gap:clamp(12px,1.6vw,24px)}
+.ans-btn{min-height:clamp(112px,15vh,175px);padding:clamp(14px,1.8vw,30px);border:3px solid #8295bf;background:#263454;border-radius:18px;color:#fff!important;font-size:clamp(22px,2.15vw,38px)!important;font-weight:800;line-height:1.22;gap:clamp(12px,1.5vw,24px)}
+.ans-btn .ans-text,.ans-btn .ans-text *{color:#fff!important;font-weight:800!important;font-size:inherit!important}
+.ans-label{font-size:clamp(25px,2.5vw,42px);min-width:clamp(48px,4vw,70px);padding:10px 12px;background:#53648c;color:#fff;border-radius:12px}
+.ans-btn:hover:not(:disabled),.ans-btn:focus-visible{background:#384e7d;border-color:#ffe66d;outline:3px solid #ffe66d;outline-offset:2px}
+.ans-btn.correct{background:#145c43!important;border-color:#62f4b2!important}
+.ans-btn.incorrect{background:#7b2533!important;border-color:#ff8998!important}
+.feedback{font-size:clamp(22px,2.2vw,36px);padding:12px}
+@media(max-width:800px){.quiz-content{width:98vw;max-height:96vh;padding:14px;min-height:0}.q-text,.q-text span,.q-text *{font-size:clamp(23px,4.2vw,38px)!important}.ans-btn{font-size:clamp(19px,3vw,27px)!important;min-height:95px;padding:12px}.answers-wrap{gap:10px}}
+@media(max-width:600px){.answers-wrap{grid-template-columns:1fr}.quiz-content{justify-content:flex-start}.ans-btn{min-height:70px}.q-text,.q-text span,.q-text *{font-size:clamp(22px,5vw,32px)!important}}
+@media(max-height:650px) and (min-width:801px){.quiz-content{min-height:0;gap:8px;padding:12px 28px}.q-text,.q-text span,.q-text *{font-size:clamp(24px,2.6vw,38px)!important}.ans-btn{min-height:90px;font-size:clamp(20px,1.8vw,28px)!important;padding:12px}.quiz-header{min-height:36px}}
+
 </style>
 </head>
 <body>
