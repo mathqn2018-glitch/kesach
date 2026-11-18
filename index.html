@@ -107,6 +107,34 @@
 @media(max-width:700px){.feedback{width:94%;min-height:150px;gap:12px;border-width:4px;padding:14px;font-size:clamp(24px,5vw,40px)!important}.feedback-icon{font-size:45px}.feedback small{font-size:clamp(15px,3vw,22px);margin-top:8px}}
 @media(prefers-reduced-motion:reduce){.feedback-pop{animation:none}}
 
+
+/* PHIEN BAN SAN KHAU: THONG BAO DUNG SAI TOAN MAN HINH */
+#quiz-overlay{isolation:isolate}
+.quiz-content{isolation:auto}
+.feedback{
+ position:fixed!important;inset:5% 4%!important;left:4%!important;top:5%!important;
+ transform:none!important;width:92%!important;height:90%!important;max-width:none!important;
+ border-radius:32px!important;border:9px solid #fff!important;
+ padding:clamp(16px,3vw,54px)!important;
+ display:none;flex-direction:column!important;gap:clamp(12px,2vh,28px)!important;
+ font-size:clamp(48px,6.3vw,112px)!important;
+ line-height:1.04!important;letter-spacing:1px!important;
+ z-index:100!important;pointer-events:auto!important;
+ box-shadow:0 0 0 100vmax rgba(0,0,0,.86),0 0 90px currentColor!important;
+ text-shadow:0 5px 9px rgba(0,0,0,.55)!important;
+}
+.feedback.correct{background:radial-gradient(ellipse at center,#148d5a 0%,#075a3e 75%,#053725 100%)!important;color:#fff!important;border-color:#d0ffe6!important}
+.feedback.incorrect{background:radial-gradient(ellipse at center,#db3150 0%,#8f1029 72%,#5c071b 100%)!important;color:#fff!important;border-color:#ffe3e7!important}
+.feedback-icon{font-size:clamp(90px,12vw,200px)!important;line-height:1!important;filter:drop-shadow(0 0 20px rgba(255,255,255,.55))}
+.feedback-message{font-size:inherit;font-weight:1000;text-align:center}
+.feedback small{font-size:clamp(29px,3.7vw,68px)!important;margin-top:clamp(12px,2vh,30px)!important;line-height:1.12!important}
+.feedback-pop{animation:stageEnter .5s cubic-bezier(.12,1.18,.3,1) both,stageGlow 1.15s ease-in-out .5s infinite alternate!important}
+@keyframes stageEnter{0%{opacity:0;transform:scale(.65)!important}60%{opacity:1}100%{opacity:1;transform:scale(1)!important}}
+@keyframes stageGlow{from{filter:brightness(1)}to{filter:brightness(1.18)}}
+@media(max-height:650px){.feedback{inset:3% 3%!important;left:3%!important;top:3%!important;width:94%!important;height:94%!important;gap:6px!important}.feedback-icon{font-size:clamp(65px,10vh,120px)!important}.feedback-message{font-size:clamp(38px,7vh,80px)!important}.feedback small{font-size:clamp(23px,4vh,44px)!important;margin-top:8px!important}}
+@media(max-width:700px){.feedback{inset:3%!important;left:3%!important;top:3%!important;width:94%!important;height:94%!important;border-width:5px!important}.feedback-message{font-size:clamp(34px,7vw,64px)!important}.feedback small{font-size:clamp(22px,4.8vw,40px)!important}}
+@media(prefers-reduced-motion:reduce){.feedback-pop{animation:none!important}}
+
 </style>
 </head>
 <body>
@@ -183,12 +211,15 @@ function playCorrect() {
     tone(f,i*0.13,0.28,'triangle',0.16);
   });
   tone(1046.5,0.79,0.45,'sine',0.11);
+  tone(523.25,0.81,0.6,'triangle',0.08);
+  tone(783.99,0.83,0.6,'sine',0.08);
 }
 function playIncorrect() {
   // Ba tiếng báo chưa đúng, rõ ràng nhưng không chói tai.
   tone(392,0,0.19,'triangle',0.14);
   tone(329.63,0.24,0.19,'triangle',0.14);
   tone(261.63,0.48,0.34,'triangle',0.15);
+  tone(196,0.68,0.38,'sine',0.11);
 }
 var soundToggle = document.getElementById('sound-toggle');
 soundToggle.addEventListener('click',function(){
@@ -360,14 +391,14 @@ function handleAbcd(i, q) {
     setFeedback('correct');
     answered = true;
     markCorrectBtn(i);
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 3200);
   } else {
     playIncorrect();
     incorrectSet.push(i);
     var btn = document.querySelector('.ans-btn[data-idx="'+i+'"]');
     if (btn) { btn.classList.add('incorrect'); setTimeout(function(){ btn.classList.remove('incorrect') }, 1200) }
     setFeedback('incorrect');
-    setTimeout(function(){ setFeedback('') }, 1500);
+    setTimeout(function(){ setFeedback('') }, 2300);
   }
 }
 
@@ -377,12 +408,12 @@ function handleMultiple(q) {
   var ok = selectedMultiple.length === correct.length && selectedMultiple.every(function(x){ return correct.includes(x) });
   if (ok) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 3200);
   } else {
     playIncorrect(); setFeedback('incorrect');
     selectedMultiple = [];
     document.querySelectorAll('.ans-btn[data-multi]').forEach(function(b){ b.classList.remove('selected') });
-    setTimeout(function(){ setFeedback('') }, 1500);
+    setTimeout(function(){ setFeedback('') }, 2300);
   }
 }
 
@@ -390,12 +421,12 @@ function handleTrueFalse(q) {
   var ok = (q.statements||[]).every(function(st,i){ return tfState[i] === st.isTrue });
   if (ok) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 3200);
   } else {
     playIncorrect(); setFeedback('incorrect');
     tfState = {};
     document.querySelectorAll('.tf-btn').forEach(function(b){ b.classList.remove('tf-selected-t','tf-selected-f') });
-    setTimeout(function(){ setFeedback('') }, 1500);
+    setTimeout(function(){ setFeedback('') }, 2300);
   }
 }
 
@@ -408,11 +439,11 @@ function handleShort(q) {
   var alts = (q.alternativeAnswers||[]).map(function(a){ return a.trim().toLowerCase() });
   if (userAns === correct || alts.includes(userAns)) {
     completedQuizzes.add(currentIdx); celebrateCorrect(); setFeedback('correct'); answered = true;
-    setTimeout(closeOverlayAndResume, 2100);
+    setTimeout(closeOverlayAndResume, 3200);
   } else {
     playIncorrect(); setFeedback('incorrect');
     inp.value = '';
-    setTimeout(function(){ setFeedback('') }, 1500);
+    setTimeout(function(){ setFeedback('') }, 2300);
   }
 }
 
@@ -424,8 +455,8 @@ function setFeedback(state) {
   el.setAttribute('role','status');
   el.setAttribute('aria-live','polite');
   el.innerHTML = state === 'correct'
-    ? '<span class="feedback-icon">🎉</span><span>CHÍNH XÁC!<small>CHÚC MỪNG EM!</small></span>'
-    : '<span class="feedback-icon">❌</span><span>CHƯA CHÍNH XÁC!<small>EM HÃY THỬ LẠI NHÉ!</small></span>';
+    ? '<span class="feedback-icon">🏆🎉</span><span class="feedback-message">CHÍNH XÁC!<small>CHÚC MỪNG EM!</small></span>'
+    : '<span class="feedback-icon">⚠️</span><span class="feedback-message">CHƯA CHÍNH XÁC!<small>HÃY THỬ LẠI NHÉ!</small></span>';
   el.style.display = 'flex';
   el.classList.remove('feedback-pop');
   void el.offsetWidth;
